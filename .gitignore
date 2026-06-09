@@ -1,0 +1,11 @@
+# Node modules
+frontend/node_modules/
+
+# Python env
+backend/__pycache__/
+venv/
+
+# Env files and Firebase service account (do not commit)
+/backend/serviceAccountKey.json
+/backend/.env
+/frontend/.env
