@@ -1,19 +1,11 @@
-from fastapi import APIRouter
-
-router = APIRouter(prefix="/chat")
-
-
-@router.get("/ping")
-def ping():
-    return {"ok": True, "endpoint": "chat"}
 import os
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
 import firebase_admin
-from firebase_admin import firestore
+import httpx
 from fastapi import APIRouter, HTTPException, status
+from firebase_admin import firestore
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/chat")
@@ -56,16 +48,16 @@ async def post_message(payload: ChatMessageRequest) -> dict[str, Any]:
     messages = [item.model_dump() for item in payload.history]
     messages.append({"role": "user", "content": payload.message})
 
-    ollama_url = f"{_ollama_base_url()}/api/chat"
-    ollama_request = {
-        "model": _ollama_model(),
-        "messages": messages,
-        "stream": False,
-    }
-
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(ollama_url, json=ollama_request)
+            response = await client.post(
+                f"{_ollama_base_url()}/api/chat",
+                json={
+                    "model": _ollama_model(),
+                    "messages": messages,
+                    "stream": False,
+                },
+            )
             response.raise_for_status()
     except httpx.RequestError as exc:
         raise HTTPException(
@@ -78,10 +70,7 @@ async def post_message(payload: ChatMessageRequest) -> dict[str, Any]:
             detail=f"Ollama returned an error: {exc.response.text}",
         ) from exc
 
-    ollama_data = response.json()
-    assistant_message = ollama_data.get("message", {})
-    assistant_content = assistant_message.get("content")
-
+    assistant_content = response.json().get("message", {}).get("content")
     if not assistant_content:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -91,7 +80,6 @@ async def post_message(payload: ChatMessageRequest) -> dict[str, Any]:
     db = _get_firestore_client()
     session_ref = db.collection("sessions").document(payload.session_id)
     messages_ref = session_ref.collection("messages")
-
     now = datetime.now(timezone.utc)
 
     try:
@@ -120,9 +108,9 @@ async def post_message(payload: ChatMessageRequest) -> dict[str, Any]:
         batch.set(
             session_ref,
             {
+                "user_id": payload.user_id,
                 "last_updated": now,
                 "message_count": firestore.Increment(2),
-                "user_id": payload.user_id,
             },
             merge=True,
         )
