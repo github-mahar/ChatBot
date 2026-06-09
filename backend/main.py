@@ -36,9 +36,9 @@ def healthz():
 
 # Include placeholder routers
 try:
-    from routes.chat import router as chat_router
-    from routes.sessions import router as sessions_router
-    from routes.analytics import router as analytics_router
+    from backend.routes.chat import router as chat_router
+    from backend.routes.sessions import router as sessions_router
+    from backend.routes.analytics import router as analytics_router
 
     app.include_router(chat_router)
     app.include_router(sessions_router)
