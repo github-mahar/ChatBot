@@ -23,6 +23,12 @@ class ChatMessageRequest(BaseModel):
     history: list[ChatHistoryMessage] = Field(default_factory=list)
 
 
+class ChatFeedbackRequest(BaseModel):
+    session_id: str = Field(..., min_length=1)
+    message_id: str = Field(..., min_length=1)
+    feedback: str = Field(..., min_length=1)
+
+
 def _get_firestore_client() -> firestore.Client:
     try:
         firebase_admin.get_app()
@@ -36,11 +42,11 @@ def _get_firestore_client() -> firestore.Client:
 
 
 def _ollama_base_url() -> str:
-    return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    return os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 
 
 def _ollama_model() -> str:
-    return os.getenv("OLLAMA_MODEL", "llama3")
+    return os.getenv("OLLAMA_MODEL", "llama3:latest")
 
 
 @router.post("/message")
@@ -48,14 +54,15 @@ async def post_message(payload: ChatMessageRequest) -> dict[str, Any]:
     messages = [item.model_dump() for item in payload.history]
     messages.append({"role": "user", "content": payload.message})
 
+    ollama_url = f"{_ollama_base_url()}/v1/chat/completions"
+    print("Calling Ollama:", ollama_url)
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
-                f"{_ollama_base_url()}/api/chat",
+                ollama_url,
                 json={
                     "model": _ollama_model(),
                     "messages": messages,
-                    "stream": False,
                 },
             )
             response.raise_for_status()
@@ -70,7 +77,13 @@ async def post_message(payload: ChatMessageRequest) -> dict[str, Any]:
             detail=f"Ollama returned an error: {exc.response.text}",
         ) from exc
 
-    assistant_content = response.json().get("message", {}).get("content")
+    data = response.json()
+    # Ollama v1 returns choices -> [ { message: { role, content } } ]
+    try:
+        assistant_content = data["choices"][0]["message"]["content"]
+    except Exception:
+        assistant_content = None
+
     if not assistant_content:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -125,3 +138,18 @@ async def post_message(payload: ChatMessageRequest) -> dict[str, Any]:
         "response": assistant_content,
         "session_id": payload.session_id,
     }
+
+
+@router.post("/feedback")
+def post_feedback(payload: ChatFeedbackRequest) -> dict[str, str]:
+    db = _get_firestore_client()
+    msg_ref = db.collection("sessions").document(payload.session_id).collection("messages").document(payload.message_id)
+    try:
+        msg_ref.update({"feedback": payload.feedback})
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Message not found or update failed: {exc}",
+        ) from exc
+
+    return {"ok": "updated"}

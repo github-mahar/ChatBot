@@ -6,6 +6,11 @@ import firebase_admin
 from firebase_admin import credentials
 
 load_dotenv()
+# Also load backend/.env explicitly if present (helps when running from project root)
+try:
+    load_dotenv(os.path.join(os.getcwd(), "backend", ".env"))
+except Exception:
+    pass
 
 app = FastAPI()
 
@@ -20,13 +25,32 @@ app.add_middleware(
 )
 
 cred_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
+# Fallback: if env var not set, try the local backend/serviceAccountKey.json
+if not cred_path:
+    fallback = os.path.join(os.getcwd(), "backend", "serviceAccountKey.json")
+    if os.path.exists(fallback):
+        cred_path = fallback
+
 if cred_path:
-    try:
-        cred = credentials.Certificate(cred_path)
-        firebase_admin.initialize_app(cred)
-    except Exception as e:
-        # Initialization errors will be logged; the app will still start for dry development
-        print("Failed to initialize Firebase Admin:", e)
+    # Resolve candidate paths for the credential file to handle relative vs cwd differences
+    candidates = [cred_path, os.path.join(os.getcwd(), cred_path), os.path.join(os.getcwd(), "backend", os.path.basename(cred_path))]
+    found = None
+    for p in candidates:
+        try:
+            if os.path.exists(p):
+                found = p
+                break
+        except Exception:
+            continue
+
+    if found:
+        try:
+            cred = credentials.Certificate(found)
+            firebase_admin.initialize_app(cred)
+        except Exception as e:
+            print("Failed to initialize Firebase Admin:", e)
+    else:
+        print(f"FIREBASE_SERVICE_ACCOUNT_PATH set to '{cred_path}', but file not found in candidates: {candidates}")
 else:
     print("FIREBASE_SERVICE_ACCOUNT_PATH not set; skipping Firebase Admin init")
 
