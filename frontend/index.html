@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ChatBot AI — Login</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Firebase JS SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+  <main class="center-card">
+    <h1>ChatBot AI</h1>
+    <p class="tagline">Multi-turn AI chat</p>
+    <button id="signin">Sign in with Google</button>
+  </main>
+
+  <script src="js/firebase.js"></script>
+  <script>
+    // Initialize with placeholders — replace with your Firebase config
+    AppFirebase.init({
+      apiKey: "your_api_key",
+      authDomain: "your_project.firebaseapp.com",
+      projectId: "your_project_id",
+      appId: "your_app_id"
+    });
+
+    document.getElementById('signin').addEventListener('click', () => {
+      AppFirebase.signInWithGoogle().then(() => {
+        window.location.href = 'chat.html';
+      });
+    });
+  </script>
+</body>
+</html>

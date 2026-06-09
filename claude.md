@@ -178,89 +178,32 @@ Request body: `{ "user_id": "string", "title": "string" }`
 
 ## Frontend Implementation
 
-### `frontend/src/firebase.js`
-- Initialize Firebase app using `VITE_FIREBASE_*` env vars
-- Export `auth` (Firebase Auth instance) and `db` (Firestore instance)
-- Export `googleProvider` (GoogleAuthProvider instance)
+### Frontend (Plain HTML/CSS/Vanilla JS)
 
-### `frontend/src/App.jsx`
-- Use `onAuthStateChanged` to track login state
-- Routes:
-  - `/` → if logged in redirect to `/chat`, else show `LoginPage`
-  - `/chat` → protected, show `ChatPage`
-  - `/dashboard` → protected, show `DashboardPage`
-- Use React Router v6
+The frontend is implemented with plain HTML, CSS, and vanilla JavaScript (no React, no Vite, no npm). Firebase and Chart.js are loaded via CDN. The folder structure is:
 
-### `frontend/src/pages/LoginPage.jsx`
-- Centered card layout with app name "ChatBot AI" and tagline
-- Single "Sign in with Google" button
-- On click: call `signInWithPopup(auth, googleProvider)`
-- On success: navigate to `/chat`
-- Dark theme: background `#0f0f0f`, card `#1a1a1a`, accent color `#6366f1` (indigo)
+```
+frontend/
+├── index.html        (Login page)
+├── chat.html         (Chat page)
+├── dashboard.html    (Analytics/Dashboard page)
+├── css/
+│   └── style.css
+└── js/
+    ├── firebase.js   (Firebase init + auth helpers)
+    ├── chat.js       (Chat page logic, send/receive messages)
+    └── dashboard.js  (Dashboard page logic, Chart.js rendering)
+```
 
-### `frontend/src/pages/ChatPage.jsx`
+Details:
+- `index.html`: Simple login page with a "Sign in with Google" button. Uses the Firebase JS SDK from CDN and `js/firebase.js` to initialize auth and perform sign-in.
+- `chat.html`: Two-column layout (sessions sidebar + chat area). Uses `js/chat.js` to load sessions, send messages to the backend (`/chat/message`), and render messages. All Firestore writes go through the backend; frontend only calls backend APIs.
+- `dashboard.html`: Loads analytics from `GET /analytics/{user_id}`, displays stat cards and renders charts using Chart.js (CDN). Uses `js/dashboard.js`.
+- `js/firebase.js`: Exposes global `AppFirebase` with `init(config)`, `onAuthStateChanged(cb)`, `signInWithGoogle()`, and `signOut()` functions. The Firebase client config is stored as placeholders in `js/firebase.js`; replace with your project values.
 
-Layout: two-column
-- **Left sidebar (280px)**: SessionList component + "New Chat" button + user avatar + logout button
-- **Right main area**: ChatWindow component
-
-State:
-- `sessions` — list of user's sessions
-- `activeSessionId` — currently selected session
-- `messages` — messages for active session
-
-On mount:
-- Fetch sessions from `GET /sessions/{user_id}`
-- If no sessions exist, auto-create one titled "New Chat"
-
-On new message:
-- Append user message to `messages` state immediately (optimistic UI)
-- Show typing indicator
-- POST to `/chat/message` with full history
-- Replace typing indicator with AI response
-
-### `frontend/src/pages/DashboardPage.jsx`
-- Fetch from `GET /analytics/{user_id}` on mount
-- Display stat cards: Total Sessions, Total Messages, Positive Feedback %, Avg Messages/Session
-- Line chart (Recharts): Messages per day over last 14 days
-- Bar chart (Recharts): Positive vs Negative feedback count
-- Back button to `/chat`
-
-### `frontend/src/components/ChatWindow.jsx`
-- Scrollable message list using `MessageBubble`
-- Auto-scroll to bottom on new message (use `useRef` + `scrollIntoView`)
-- Input bar at bottom: textarea (Enter to send, Shift+Enter for newline) + Send button
-- Show typing indicator (three animated dots) while waiting for AI response
-
-### `frontend/src/components/MessageBubble.jsx`
-Props: `{ role, content, messageId, sessionId, feedback }`
-- User messages: aligned right, indigo background
-- AI messages: aligned left, dark gray background
-- Below each AI message: `FeedbackButtons` component (only if `feedback` is not yet set)
-
-### `frontend/src/components/FeedbackButtons.jsx`
-Props: `{ messageId, sessionId, onFeedback }`
-- Two icon buttons: 👍 and 👎
-- On click: POST to `/chat/feedback`, then call `onFeedback(type)` to update local state
-- After feedback is given: show the selected icon highlighted, hide the other
-
-### `frontend/src/components/SessionList.jsx`
-Props: `{ sessions, activeSessionId, onSelect, onDelete }`
-- List of past sessions sorted by `last_updated`
-- Each item: session title + last updated date
-- Hover: show delete (trash) icon
-- Click: switch active session and load its messages
-- Active session: highlighted with indigo left border
-
-### `frontend/src/components/Navbar.jsx`
-- App name on the left
-- "Dashboard" link and user profile photo + name on the right
-- Logout button
-
-### `frontend/src/components/AnalyticsChart.jsx`
-Props: `{ data, type }` where type is `"line"` or `"bar"`
-- Wrap Recharts `LineChart` or `BarChart` with responsive container
-- Use indigo/purple color scheme consistent with app theme
+Notes:
+- Pages can be opened directly in a browser (file://) for basic UI, but to use OAuth sign-in you must serve the files over HTTP (use a simple local static server such as `python -m http.server 5173` or any static file server) and set the correct OAuth redirect origins in Firebase Console.
+- Backend URL is `http://localhost:8000` by default; edit `chat.js` and `dashboard.js` to change the backend host if needed.
 
 ---
 
